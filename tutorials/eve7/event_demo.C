@@ -264,7 +264,7 @@ void event_demo()
    makeGeometryScene();
    makeEventScene();
 
-   if (1) {
+   if (0) {
       createProjectionStuff();
       projectScenes(true, true);
    }
