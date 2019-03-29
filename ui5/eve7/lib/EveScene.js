@@ -341,6 +341,7 @@ sap.ui.define([
    /** interactive handler */
    EveScene.prototype.processElementHighlighted = function(obj3d, col, indx, evnt)
    {
+      return;
       var id = obj3d.mstrId;
       // id = obj3d.eveId;
 
@@ -373,7 +374,13 @@ sap.ui.define([
       if ( ! from_interactive)
          this.selected[mstrid] = { id: mstrid, col: col, indx: indx };
 
-      this.drawSpecial(mstrid);
+      // this.drawSpecial(mstrid);
+      var mesh = this.getObj3D(mstrid);
+      if (mesh) {
+	 this.viewer.outlinePass.selectedObjects = [mesh];
+	 console.log("==== outline selected  ... ",this.viewer.outlinePass.selectedObjects);
+	 this.viewer.render();
+      }
    }
 
    /** Called when processing changes from server or from interactive handler */

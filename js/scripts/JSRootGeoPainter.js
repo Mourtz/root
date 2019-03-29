@@ -1876,7 +1876,7 @@
          // Add pass to effect composer
          this._effectComposer = new THREE.EffectComposer( this._renderer );
          this._effectComposer.addPass( renderPass );
-         this._effectComposer.addPass( this._ssaoPass );
+//         this._effectComposer.addPass( this._ssaoPass );
       }
 
       this._advceOptions = {};

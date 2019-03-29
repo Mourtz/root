@@ -43,7 +43,7 @@ sap.ui.define([
          var pthis = this;
          
          // one only can load EveScene after geometry painter 
-         sap.ui.define(['rootui5/eve7/lib/EveScene'], function (_EveScene) {
+         sap.ui.define(['rootui5/eve7/lib/EveScene', 'rootui5/eve7/lib/OutlinePass',  'rootui5/eve7/lib/FXAAShader'], function (_EveScene) {
             EveScene = _EveScene;
             pthis._load_scripts = true;
             pthis.checkViewReady();
@@ -309,6 +309,31 @@ sap.ui.define([
          this.geo_painter.AssignObject(null);
 
          this.geo_painter.prepareObjectDraw(null); // and now start everything
+         
+         console.log("create composer ",window.innerWidth, window.innerHeight );
+         var composer = this.geo_painter._effectComposer;
+         var outlinePass = new THREE.OutlinePass( new THREE.Vector2( window.innerWidth, window.innerHeight ),this.geo_painter._scene, this.geo_painter._camera  );
+         outlinePass.edgeStrength = 5.0;
+         outlinePass.edgeGlow = 1.0;
+	 outlinePass.edgeThickness = 1.0;
+	 outlinePass.usePatternTexture = false;
+	 outlinePass.downSampleRatio = 2;
+         outlinePass.visibleEdgeColor.set('#dd1111'  );
+	 outlinePass.hiddenEdgeColor.set( '#1111dd'  );
+         
+	 composer.addPass( outlinePass );
+
+         var sh = THREE.FXAAShader;
+	 var effectFXAA = new THREE.ShaderPass(sh );
+         console.log("shader fxaa \n", );
+	 effectFXAA.uniforms[ 'resolution' ].value.set( 1 / window.innerWidth, 1 / window.innerHeight );
+	 effectFXAA.renderToScreen = true;
+ 	 composer.addPass( effectFXAA );
+         this.composer = composer;
+         
+	 composer.setSize( window.innerWidth, window.innerHeight );
+         this.geo_painter._enableSSAO = true;
+         this.outlinePass = outlinePass;
       },
 
       onGeoPainterReady: function(painter) {
