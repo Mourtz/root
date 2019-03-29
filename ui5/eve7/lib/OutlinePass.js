@@ -96,7 +96,7 @@ THREE.OutlinePass = function ( resolution, scene, camera, selectedObjects ) {
 	} );
 
 	this.enabled = true;
-	this.needsSwap = false;
+	this.needsSwap = true;
 
 	this.oldClearColor = new THREE.Color();
 	this.oldClearAlpha = 1;
@@ -209,7 +209,7 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 
 		function VisibilityChangeCallBack( object ) {
 
-			if ( object.isMesh || object.isLine || object.isSprite ) {
+			if ( object.isMesh ) {
 
 				var bFound = false;
 
@@ -255,7 +255,7 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 
 	},
 
-	render: function ( renderer, writeBuffer, readBuffer, delta, maskActive ) {
+	render: function ( renderer, writeBuffer, readBuffer, deltaTime, maskActive ) {
 
 		if ( this.selectedObjects.length > 0 ) {
 
@@ -346,25 +346,22 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 			this.overlayMaterial.uniforms[ "edgeTexture1" ].value = this.renderTargetEdgeBuffer1.texture;
 			this.overlayMaterial.uniforms[ "edgeTexture2" ].value = this.renderTargetEdgeBuffer2.texture;
 			this.overlayMaterial.uniforms[ "patternTexture" ].value = this.patternTexture;
+			this.overlayMaterial.uniforms[ "backbuffer" ].value = readBuffer.texture;
 			this.overlayMaterial.uniforms[ "edgeStrength" ].value = this.edgeStrength;
 			this.overlayMaterial.uniforms[ "edgeGlow" ].value = this.edgeGlow;
 			this.overlayMaterial.uniforms[ "usePatternTexture" ].value = this.usePatternTexture;
 
-
 			if ( maskActive ) renderer.context.enable( renderer.context.STENCIL_TEST );
 
-			renderer.render( this.scene, this.camera, readBuffer, false );
+
+			renderer.render( this.scene, this.camera, writeBuffer, true );
 
 			renderer.setClearColor( this.oldClearColor, this.oldClearAlpha );
 			renderer.autoClear = oldAutoClear;
-
-		}
-
-		if ( this.renderToScreen ) {
-
+		} else {
 			this.quad.material = this.materialCopy;
 			this.copyUniforms[ "tDiffuse" ].value = readBuffer.texture;
-			renderer.render( this.scene, this.camera );
+			renderer.render( this.scene, this.camera, writeBuffer, true );
 
 		}
 
@@ -390,6 +387,7 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 				'	vPosition = modelViewMatrix * vec4( position, 1.0 );',
 				'	vec4 worldPosition = modelMatrix * vec4( position, 1.0 );',
 				'	projTexCoord = textureMatrix * worldPosition;',
+				'	gl_PointSize = 20.0;',
 				'	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );',
 
 				'}'
@@ -431,32 +429,22 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 				"varying vec2 vUv;\n\
 				void main() {\n\
 					vUv = uv;\n\
+					gl_PointSize = 20.0;\n\
 					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n\
 				}",
 
 			fragmentShader:
-				"varying vec2 vUv;\
+				`varying vec2 vUv;\
 				uniform sampler2D maskTexture;\
 				uniform vec2 texSize;\
 				uniform vec3 visibleEdgeColor;\
 				uniform vec3 hiddenEdgeColor;\
 				\
-				void main() {\n\
-					vec2 invSize = 1.0 / texSize;\
-					vec4 uvOffset = vec4(1.0, 0.0, 0.0, 1.0) * vec4(invSize, invSize);\
-					vec4 c1 = texture2D( maskTexture, vUv + uvOffset.xy);\
-					vec4 c2 = texture2D( maskTexture, vUv - uvOffset.xy);\
-					vec4 c3 = texture2D( maskTexture, vUv + uvOffset.yw);\
-					vec4 c4 = texture2D( maskTexture, vUv - uvOffset.yw);\
-					float diff1 = (c1.r - c2.r)*0.5;\
-					float diff2 = (c3.r - c4.r)*0.5;\
-					float d = length( vec2(diff1, diff2) );\
-					float a1 = min(c1.g, c2.g);\
-					float a2 = min(c3.g, c4.g);\
-					float visibilityFactor = min(a1, a2);\
-					vec3 edgeColor = 1.0 - visibilityFactor > 0.001 ? visibleEdgeColor : hiddenEdgeColor;\
-					gl_FragColor = vec4(edgeColor, 1.0) * vec4(d);\
-				}"
+				void main() {
+					vec4 edge = texture2D( maskTexture, vUv);
+					vec3 edgeColor = (1.0 - edge.g) > 0.001 ? visibleEdgeColor : hiddenEdgeColor;
+					gl_FragColor = vec4( edgeColor, 1.0) * (1.0-edge.r);
+				}`
 		} );
 
 	},
@@ -480,6 +468,7 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 				"varying vec2 vUv;\n\
 				void main() {\n\
 					vUv = uv;\n\
+					gl_PointSize = 20.0;\n\
 					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n\
 				}",
 
@@ -523,6 +512,7 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 				"edgeTexture1": { value: null },
 				"edgeTexture2": { value: null },
 				"patternTexture": { value: null },
+				"backbuffer": { value: null },
 				"edgeStrength": { value: 1.0 },
 				"edgeGlow": { value: 1.0 },
 				"usePatternTexture": { value: 0.0 }
@@ -532,35 +522,45 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 				"varying vec2 vUv;\n\
 				void main() {\n\
 					vUv = uv;\n\
+					gl_PointSize = 20.0;\n\
 					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n\
 				}",
 
 			fragmentShader:
-				"varying vec2 vUv;\
-				uniform sampler2D maskTexture;\
-				uniform sampler2D edgeTexture1;\
-				uniform sampler2D edgeTexture2;\
-				uniform sampler2D patternTexture;\
-				uniform float edgeStrength;\
-				uniform float edgeGlow;\
-				uniform bool usePatternTexture;\
-				\
-				void main() {\
-					vec4 edgeValue1 = texture2D(edgeTexture1, vUv);\
-					vec4 edgeValue2 = texture2D(edgeTexture2, vUv);\
-					vec4 maskColor = texture2D(maskTexture, vUv);\
-					vec4 patternColor = texture2D(patternTexture, 6.0 * vUv);\
-					float visibilityFactor = 1.0 - maskColor.g > 0.0 ? 1.0 : 0.5;\
-					vec4 edgeValue = edgeValue1 + edgeValue2 * edgeGlow;\
-					vec4 finalColor = edgeStrength * maskColor.r * edgeValue;\
-					if(usePatternTexture)\
-						finalColor += + visibilityFactor * (1.0 - maskColor.r) * (1.0 - patternColor.r);\
-					gl_FragColor = finalColor;\
-				}",
-			blending: THREE.AdditiveBlending,
-			depthTest: false,
-			depthWrite: false,
-			transparent: true
+				`varying vec2 vUv;
+				precision highp float;
+				uniform sampler2D maskTexture;
+				uniform sampler2D edgeTexture1;
+				uniform sampler2D edgeTexture2;
+				uniform sampler2D patternTexture;
+				uniform sampler2D backbuffer;
+				uniform float edgeStrength;
+				uniform float edgeGlow;
+				uniform bool usePatternTexture;
+
+				void main() {
+					vec4 backbuffer = texture2D(backbuffer, vUv);
+					vec4 edgeValue1 = texture2D(edgeTexture1, vUv);
+					vec4 edgeValue2 = texture2D(edgeTexture2, vUv);
+					vec4 maskColor = texture2D(maskTexture, vUv);
+					vec4 patternColor = texture2D(patternTexture, 6.0 * vUv);
+					float visibilityFactor = 1.0 - maskColor.g > 0.0 ? 1.0 : 0.5;
+					vec4 edgeValue = edgeValue1 + edgeValue2 * edgeGlow;
+					vec4 finalColor = edgeStrength * edgeValue;
+					if(usePatternTexture)
+						finalColor += + visibilityFactor * (1.0 - maskColor.r) * (1.0 - patternColor.r);
+
+					#define col finalColor.rgb
+
+					// col = edgeValue1.rgb;
+					col = mix(backbuffer.rgb, col,  maskColor.r * dot(col, vec3(0.33333)));
+
+					gl_FragColor = vec4(col, 1.0);
+					#undef col
+				}`,
+				depthTest: false,
+				depthWrite: false,
+				transparent: false
 		} );
 
 	}
