@@ -163,7 +163,7 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 
 		function gatherSelectedMeshesCallBack( object ) {
 
-			if ( object.isMesh ) {
+			if ( object.isMesh || object.isLine || object.isPoints ) {
 
 				if ( bVisible ) {
 
@@ -196,7 +196,7 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 
 		function gatherSelectedMeshesCallBack( object ) {
 
-			if ( object.isMesh ) selectedMeshes.push( object );
+			if ( object.isMesh || object.isLine || object.isPoints ) selectedMeshes.push( object );
 
 		}
 
@@ -209,7 +209,7 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 
 		function VisibilityChangeCallBack( object ) {
 
-			if ( object.isMesh ) {
+			if ( object.isMesh || object.isLine || object.isSprite || object.isPoints ) {
 
 				var bFound = false;
 
@@ -352,7 +352,6 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 			this.overlayMaterial.uniforms[ "usePatternTexture" ].value = this.usePatternTexture;
 
 			if ( maskActive ) renderer.context.enable( renderer.context.STENCIL_TEST );
-
 
 			renderer.render( this.scene, this.camera, writeBuffer, true );
 
