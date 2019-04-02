@@ -4,6 +4,7 @@
 
 THREE.OutlinePass = function ( resolution, scene, camera, selectedObjects ) {
 
+	this.atts = [];
 	this.renderScene = scene;
 	this.renderCamera = camera;
 	this.selectedObjects = selectedObjects !== undefined ? selectedObjects : [];
@@ -159,6 +160,29 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 
 	},
 
+	changeVisibilityOfObject: function( bVisible, object ){
+		function gatherSelectedMeshesCallBack( object ) {
+
+			if ( object.isMesh || object.isLine || object.isPoints ) {
+
+				if ( bVisible ) {
+
+					object.visible = object.userData.oldVisible;
+					delete object.userData.oldVisible;
+
+				} else {
+
+					object.userData.oldVisible = object.visible;
+					object.visible = bVisible;
+
+				}
+
+			}
+		}
+
+		object.traverse( gatherSelectedMeshesCallBack );
+	},
+
 	changeVisibilityOfSelectedObjects: function ( bVisible ) {
 
 		function gatherSelectedMeshesCallBack( object ) {
@@ -279,21 +303,29 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 			this.renderScene.overrideMaterial = this.depthMaterial;
 			renderer.render( this.renderScene, this.renderCamera, this.renderTargetDepthBuffer, true );
 
-			// Make selected objects visible
-			this.changeVisibilityOfSelectedObjects( true );
-
 			// Update Texture Matrix for Depth compare
 			this.updateTextureMatrix();
 
 			// Make non selected objects invisible, and draw only the selected objects, by comparing the depth buffer of non selected objects
 			this.changeVisibilityOfNonSelectedObjects( false );
-			this.renderScene.overrideMaterial = this.prepareMaskMaterial;
-			this.prepareMaskMaterial.uniforms[ "cameraNearFar" ].value = new THREE.Vector2( this.renderCamera.near, this.renderCamera.far );
-			this.prepareMaskMaterial.uniforms[ "depthTexture" ].value = this.renderTargetDepthBuffer.texture;
-			this.prepareMaskMaterial.uniforms[ "textureMatrix" ].value = this.textureMatrix;
-			renderer.render( this.renderScene, this.renderCamera, this.renderTargetMaskBuffer, true );
-			this.renderScene.overrideMaterial = null;
-			this.changeVisibilityOfNonSelectedObjects( true );
+
+			// @ToDo
+			if(this.atts.length > 0){
+				for (const att of this.atts){
+					this.changeVisibilityOfObject(true, this.selectedObjects[att.index]);
+				}
+			} else {
+				// Make selected objects visible
+				this.changeVisibilityOfSelectedObjects( true );
+
+				this.renderScene.overrideMaterial = this.prepareMaskMaterial;
+				this.prepareMaskMaterial.uniforms[ "cameraNearFar" ].value = new THREE.Vector2( this.renderCamera.near, this.renderCamera.far );
+				this.prepareMaskMaterial.uniforms[ "depthTexture" ].value = this.renderTargetDepthBuffer.texture;
+				this.prepareMaskMaterial.uniforms[ "textureMatrix" ].value = this.textureMatrix;
+				renderer.render( this.renderScene, this.renderCamera, this.renderTargetMaskBuffer, true );
+				this.renderScene.overrideMaterial = null;
+				this.changeVisibilityOfNonSelectedObjects( true );
+			}
 
 			this.renderScene.background = currentBackground;
 
@@ -373,44 +405,36 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 			uniforms: {
 				"depthTexture": { value: null },
 				"cameraNearFar": { value: new THREE.Vector2( 0.5, 0.5 ) },
-				"textureMatrix": { value: new THREE.Matrix4() }
+				"textureMatrix": { value: new THREE.Matrix4() },
+				"pointSize": { value: 10.0 }
 			},
 
-			vertexShader: [
-				'varying vec4 projTexCoord;',
-				'varying vec4 vPosition;',
-				'uniform mat4 textureMatrix;',
+			vertexShader:
+				`varying vec4 projTexCoord;
+				varying vec4 vPosition;
+				uniform mat4 textureMatrix;
+				uniform float pointSize;
+				void main() {
+					vPosition = modelViewMatrix * vec4( position, 1.0 );
+					vec4 worldPosition = modelMatrix * vec4( position, 1.0 );
+					projTexCoord = textureMatrix * worldPosition;
+					gl_PointSize = pointSize;
+					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+				}`,
 
-				'void main() {',
-
-				'	vPosition = modelViewMatrix * vec4( position, 1.0 );',
-				'	vec4 worldPosition = modelMatrix * vec4( position, 1.0 );',
-				'	projTexCoord = textureMatrix * worldPosition;',
-				'	gl_PointSize = 20.0;',
-				'	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );',
-
-				'}'
-			].join( '\n' ),
-
-			fragmentShader: [
-				'#include <packing>',
-				'varying vec4 vPosition;',
-				'varying vec4 projTexCoord;',
-				'uniform sampler2D depthTexture;',
-				'uniform vec2 cameraNearFar;',
-
-				'void main() {',
-
-				'	float depth = unpackRGBAToDepth(texture2DProj( depthTexture, projTexCoord ));',
-				'	float viewZ = - DEPTH_TO_VIEW_Z( depth, cameraNearFar.x, cameraNearFar.y );',
-				'	float depthTest = (-vPosition.z > viewZ) ? 1.0 : 0.0;',
-				'	gl_FragColor = vec4(0.0, depthTest, 1.0, 1.0);',
-
-				'}'
-			].join( '\n' )
-
+			fragmentShader:
+				`#include <packing>
+				varying vec4 vPosition;
+				varying vec4 projTexCoord;
+				uniform sampler2D depthTexture;
+				uniform vec2 cameraNearFar;
+				void main() {
+					float depth = unpackRGBAToDepth(texture2DProj( depthTexture, projTexCoord ));
+					float viewZ = - DEPTH_TO_VIEW_Z( depth, cameraNearFar.x, cameraNearFar.y );
+					float depthTest = (-vPosition.z > viewZ) ? 1.0 : 0.0;
+					gl_FragColor = vec4(0.0, depthTest, 1.0, 1.0);
+				}`
 		} );
-
 	},
 
 	getEdgeDetectionMaterial: function () {
@@ -422,13 +446,15 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 				"texSize": { value: new THREE.Vector2( 0.5, 0.5 ) },
 				"visibleEdgeColor": { value: new THREE.Vector3( 1.0, 1.0, 1.0 ) },
 				"hiddenEdgeColor": { value: new THREE.Vector3( 1.0, 1.0, 1.0 ) },
+				"pointSize": { value: 10.0 }
 			},
 
 			vertexShader:
 				"varying vec2 vUv;\n\
+				uniform float pointSize;\n\
 				void main() {\n\
 					vUv = uv;\n\
-					gl_PointSize = 20.0;\n\
+					// gl_PointSize = pointSize;\n\
 					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n\
 				}",
 
@@ -460,14 +486,16 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 				"colorTexture": { value: null },
 				"texSize": { value: new THREE.Vector2( 0.5, 0.5 ) },
 				"direction": { value: new THREE.Vector2( 0.5, 0.5 ) },
-				"kernelRadius": { value: 1.0 }
+				"kernelRadius": { value: 1.0 },
+				"pointSize": { value: 10.0 }
 			},
 
 			vertexShader:
 				"varying vec2 vUv;\n\
+				uniform float pointSize;\n\
 				void main() {\n\
 					vUv = uv;\n\
-					gl_PointSize = 20.0;\n\
+					// gl_PointSize = pointSize;\n\
 					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n\
 				}",
 
@@ -514,16 +542,18 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 				"backbuffer": { value: null },
 				"edgeStrength": { value: 1.0 },
 				"edgeGlow": { value: 1.0 },
-				"usePatternTexture": { value: 0.0 }
+				"usePatternTexture": { value: 0.0 },
+				"pointSize": { value: 10.0 }
 			},
 
 			vertexShader:
-				"varying vec2 vUv;\n\
-				void main() {\n\
-					vUv = uv;\n\
-					gl_PointSize = 20.0;\n\
-					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n\
-				}",
+				`varying vec2 vUv;
+				uniform float pointSize;
+				void main() {
+					vUv = uv;
+					// gl_PointSize = pointSize;
+					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+				}`,
 
 			fragmentShader:
 				`varying vec2 vUv;
@@ -565,6 +595,24 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 	}
 
 } );
+
+THREE.OutlinePass.customAtt = function(mesh, opts){
+	opts = opts || {};
+
+	if(opts.index === undefined)
+		throw "you gotta pass a valid index";
+	this.index = opts.index;
+
+	this.isPoint = mesh.isPoints || opts.isPoints || false;
+	if(this.isPoint)
+		this.pointSize = opts.pointSize || 20;
+
+	this.hasCustomVertShader = (opts.vertShader !== undefined) || false;
+	if(this.hasCustomVertShader) this.vertShader = opts.vertShader;
+
+	this.hasCustomFragShader = (opts.fragShader !== undefined) || false;
+	if(this.hasCustomFragShader) this.fragShader = opts.fragShader;
+};
 
 THREE.OutlinePass.BlurDirectionX = new THREE.Vector2( 1.0, 0.0 );
 THREE.OutlinePass.BlurDirectionY = new THREE.Vector2( 0.0, 1.0 );

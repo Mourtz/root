@@ -377,9 +377,17 @@ sap.ui.define([
       // this.drawSpecial(mstrid);
       var mesh = this.getObj3D(mstrid);
       if (mesh) {
-	 this.viewer.outlinePass.selectedObjects = [mesh];
-	 console.log("==== outline selected  ... ",this.viewer.outlinePass.selectedObjects);
-	 this.viewer.render();
+         this.viewer.outlinePass.selectedObjects = [mesh];
+         // this.viewer.outlinePass.atts = [
+         //    new THREE.OutlinePass.customAtt(mesh, 
+         //       {
+         //          "index": 0,
+         //          "pointSize": 10
+         //       }
+         //    )
+         // ];
+         console.log( this.viewer.outlinePass);
+         this.viewer.render();
       }
    }
 
