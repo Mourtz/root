@@ -384,6 +384,10 @@ public:
    // accessors
    reference at(size_type pos) { return fData.at(pos); }
    const_reference at(size_type pos) const { return fData.at(pos); }
+   /// No exception thrown. The user specifies the desired value in case the RVec is shorter than `pos`.
+   value_type at(size_type pos, value_type fallback) { return pos < fData.size() ? fData[pos] : fallback; }
+   /// No exception thrown. The user specifies the desired value in case the RVec is shorter than `pos`.
+   value_type at(size_type pos, value_type fallback) const { return pos < fData.size() ? fData[pos] : fallback; }
    reference operator[](size_type pos) { return fData[pos]; }
    const_reference operator[](size_type pos) const { return fData[pos]; }
 
@@ -1402,6 +1406,29 @@ RVec<T> Where(const RVec<int> &c, T v1, T v2)
       r.emplace_back(c[i] != 0 ? v1 : v2);
    }
    return r;
+}
+
+/// Return the concatenation of two RVecs.
+///
+/// Example code, at the ROOT prompt:
+/// ~~~{.cpp}
+/// using namespace ROOT::VecOps;
+/// RVec<float> rvf {0.f, 1.f, 2.f};
+/// RVec<int> rvi {7, 8, 9};
+/// Concatenate(rvf, rvi);
+/// // (ROOT::VecOps::RVec<float>) { 2.0000000, 4.0000000, 4.0000000 }
+/// ~~~
+template <typename T0, typename T1, typename Common_t = typename std::common_type<T0, T1>::type>
+RVec<Common_t> Concatenate(const RVec<T0> &v0, const RVec<T1> &v1)
+{
+   RVec<Common_t> res;
+   res.reserve(v0.size() + v1.size());
+   auto &resAsVect = res.AsVector();
+   auto &v0AsVect = v0.AsVector();
+   auto &v1AsVect = v1.AsVector();
+   resAsVect.insert(resAsVect.begin(), v0AsVect.begin(), v0AsVect.end());
+   resAsVect.insert(resAsVect.end(), v1AsVect.begin(), v1AsVect.end());
+   return res;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
