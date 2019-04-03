@@ -4,6 +4,7 @@
 
 THREE.OutlinePass = function ( resolution, scene, camera, selectedObjects ) {
 
+	// [{ "index": number, "isPoints": boolean, "pointSize": number, "vertShader": string, "fragShader":string },......]
 	this.atts = [];
 	this.renderScene = scene;
 	this.renderCamera = camera;
@@ -126,6 +127,34 @@ THREE.OutlinePass = function ( resolution, scene, camera, selectedObjects ) {
 THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype ), {
 
 	constructor: THREE.OutlinePass,
+
+	checkForCustomAtts: function(){
+		this.atts = []; // reset
+		for (let i = 0; i < this.selectedObjects.length; ++i){
+			const object = this.selectedObjects[i];
+
+			let keys = Object.keys(object);
+			let values = Object.values(object);
+
+			let c_atts = {};
+			let h_atts = false;
+			for (const att of ["pointSize", "vertShader", "fragShader"]){
+				let pos = keys.indexOf(att);
+				console.log(keys, pos, att);
+				if(pos !== -1){
+					c_atts[att] = values[pos];
+					h_atts = true;
+				}
+			}
+
+			if(h_atts || object.isPoints) {
+				c_atts["index"] = i;
+				c_atts["isPoints"] = object.isPoints;
+				c_atts["pointSize"] = c_atts["pointSize"] || 20.0;
+				this.atts.push(c_atts);
+			}
+		}
+	},
 
 	dispose: function () {
 
@@ -310,7 +339,9 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 			this.changeVisibilityOfNonSelectedObjects( false );
 
 			// @ToDo
-			if(this.atts.length > 0){
+			this.checkForCustomAtts();
+			if(false && this.atts.length > 0){
+				Object.values(this.selectedObjects)
 				for (const att of this.atts){
 					this.changeVisibilityOfObject(true, this.selectedObjects[att.index]);
 				}
@@ -596,23 +627,25 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 
 } );
 
-THREE.OutlinePass.customAtt = function(mesh, opts){
-	opts = opts || {};
-
-	if(opts.index === undefined)
-		throw "you gotta pass a valid index";
-	this.index = opts.index;
-
-	this.isPoint = mesh.isPoints || opts.isPoints || false;
-	if(this.isPoint)
-		this.pointSize = opts.pointSize || 20;
-
-	this.hasCustomVertShader = (opts.vertShader !== undefined) || false;
-	if(this.hasCustomVertShader) this.vertShader = opts.vertShader;
-
-	this.hasCustomFragShader = (opts.fragShader !== undefined) || false;
-	if(this.hasCustomFragShader) this.fragShader = opts.fragShader;
-};
+if(false){
+	THREE.OutlinePass.customAtt = function(mesh, opts){
+		opts = opts || {};
+	
+		if(opts.index === undefined)
+			throw "you gotta pass a valid index";
+		this.index = opts.index;
+	
+		this.isPoint = mesh.isPoints || opts.isPoints || false;
+		if(this.isPoint)
+			this.pointSize = opts.pointSize || 20;
+	
+		this.hasCustomVertShader = (opts.vertShader !== undefined);
+		if(this.hasCustomVertShader) this.vertShader = opts.vertShader;
+	
+		this.hasCustomFragShader = (opts.fragShader !== undefined);
+		if(this.hasCustomFragShader) this.fragShader = opts.fragShader;
+	};
+}
 
 THREE.OutlinePass.BlurDirectionX = new THREE.Vector2( 1.0, 0.0 );
 THREE.OutlinePass.BlurDirectionY = new THREE.Vector2( 0.0, 1.0 );
