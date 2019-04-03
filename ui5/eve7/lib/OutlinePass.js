@@ -133,26 +133,36 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 		for (let i = 0; i < this.selectedObjects.length; ++i){
 			const object = this.selectedObjects[i];
 
-			let keys = Object.keys(object);
-			let values = Object.values(object);
+			if(object.type === "Points"){
+				let c_atts = {};
 
-			let c_atts = {};
-			let h_atts = false;
-			for (const att of ["pointSize", "vertShader", "fragShader"]){
-				let pos = keys.indexOf(att);
-				console.log(keys, pos, att);
-				if(pos !== -1){
-					c_atts[att] = values[pos];
-					h_atts = true;
-				}
-			}
-
-			if(h_atts || object.isPoints) {
 				c_atts["index"] = i;
-				c_atts["isPoints"] = object.isPoints;
-				c_atts["pointSize"] = c_atts["pointSize"] || 20.0;
+				c_atts["pointSize"] = (object.material.size) || 20.0;
+				c_atts["vertShader"] = object["vertShader"];
+				c_atts["fragShader"] = object["fragShader"];
+
 				this.atts.push(c_atts);
 			}
+
+			// let keys = Object.keys(object);
+			// let values = Object.values(object);
+
+			// let h_atts = false;
+			// for (const att of ["isPoints", "pointSize", "vertShader", "fragShader"]){
+			// 	let pos = keys.indexOf(att);
+			// 	// console.log(keys, pos, att);
+			// 	if(pos !== -1){
+			// 		c_atts[att] = values[pos];
+			// 		h_atts = true;
+			// 	}
+			// }
+
+			// if(h_atts) {
+			// 	c_atts["index"] = i;
+			// 	// c_atts["isPoints"] = object.isPoints;
+				
+			// 	this.atts.push(c_atts);
+			// }
 		}
 	},
 
@@ -338,9 +348,9 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 			// Make non selected objects invisible, and draw only the selected objects, by comparing the depth buffer of non selected objects
 			this.changeVisibilityOfNonSelectedObjects( false );
 
-			// @ToDo
 			this.checkForCustomAtts();
-			if(false && this.atts.length > 0){
+			// @ToDo - make it work properly for multiple selections
+			if(false && this.atts.length > 1){
 				Object.values(this.selectedObjects)
 				for (const att of this.atts){
 					this.changeVisibilityOfObject(true, this.selectedObjects[att.index]);
@@ -353,6 +363,9 @@ THREE.OutlinePass.prototype = Object.assign( Object.create( THREE.Pass.prototype
 				this.prepareMaskMaterial.uniforms[ "cameraNearFar" ].value = new THREE.Vector2( this.renderCamera.near, this.renderCamera.far );
 				this.prepareMaskMaterial.uniforms[ "depthTexture" ].value = this.renderTargetDepthBuffer.texture;
 				this.prepareMaskMaterial.uniforms[ "textureMatrix" ].value = this.textureMatrix;
+				if(this.atts[0] !== undefined) {
+					this.prepareMaskMaterial.uniforms[ "pointSize" ].value = this.atts[0].pointSize;
+				}
 				renderer.render( this.renderScene, this.renderCamera, this.renderTargetMaskBuffer, true );
 				this.renderScene.overrideMaterial = null;
 				this.changeVisibilityOfNonSelectedObjects( true );
