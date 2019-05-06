@@ -503,16 +503,30 @@
       }
 
       control.MainProcessMouseMove = function(evnt) {
-         // check timeout
+
          const toutval = 100;
 
+         let tempX = evnt.clientX;
+         let tempY = evnt.clientY;
+         this.m_halt = false;
+
+         if(!(this.m_posX === undefined || this.m_posX === undefined)){
+            let dx = tempX - this.m_posX;
+            let dy = tempY - this.m_posY;
+            let dist = (dx*dx+dy*dy);
+            
+            this.m_halt = dist < 1;
+         }
+         
+         this.m_posX = tempX;
+         this.m_posY = tempY;
+         
          // https://radiatingstar.com/blog/the-fastest-way-to-get-time-stamps-in-javascript/
          var cT = Date.now();
-         if (this.tt !== undefined && (cT - this.tt) < toutval) {
+         if(!this.m_halt && this.tt !== undefined && (cT - this.tt) < toutval)
             return;
-         } else {
-            this.tt = cT;
-         }
+
+         this.tt = cT;
 
          if (this.control_active && evnt.buttons && (evnt.buttons & 2))
             this.block_ctxt = true; // if right button in control was active, block next context menu
